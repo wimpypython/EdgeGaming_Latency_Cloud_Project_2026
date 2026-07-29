@@ -8,3 +8,4 @@ def normalize_coordinates(df):
 def handle_missing_timestamps(df):
     # TODO: Interpolate missing frame drops in telemetry
     pass
+# Added normalization logic placeholder
