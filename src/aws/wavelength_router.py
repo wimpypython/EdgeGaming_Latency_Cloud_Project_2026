@@ -1,3 +1,4 @@
 def route_to_wavelength(client_ip):
     # TODO: Map client to nearest 5G MEC zone
     pass
+# Updated Wavelength script for Verizon 5G zones
