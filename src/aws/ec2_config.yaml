@@ -1,2 +1,3 @@
 InstanceType: c5.xlarge
 SecurityGroups: [ UDP-Game-Traffic ]
+Updated EC2 rules for UDP.
