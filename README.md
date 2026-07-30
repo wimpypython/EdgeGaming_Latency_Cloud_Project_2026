@@ -2,19 +2,19 @@
 # Project Title
 Machine Learning-Based Network Latency Optimization Framework for Online Gaming Platforms using Edge Intelligence
 
-
+---
 
 ### Team Members
 *   **Atharva** - AI & Data Engineering 
 *   **Dhyaan** - AWS Cloud Infrastructure 
 *   **Sangeet** - Architecture & Backend Integration 
 
-
+---
 
 ### Problem Statement
 In fast-paced multiplayer architectures, unpredictable network jitter, kernel-level packet processing overhead, and burst packet loss cause severe latency spikes and visual desynchronization (rubber-banding). Traditional client-side dead reckoning algorithms fail entirely during sustained packet loss. Furthermore, standard operating system network stacks treat all incoming game data identically, meaning critical combat inputs get stuck in the same queue as non-critical cosmetic updates, adding unnecessary processing delay.
 
-
+---
 
 ### Objectives
 1.  **Deploy Edge Infrastructure:** Develop an ultra-low latency edge gaming framework by deploying game servers on AWS          Wavelength zones.
@@ -23,7 +23,7 @@ In fast-paced multiplayer architectures, unpredictable network jitter, kernel-le
 4.  **Secure Data Pipeline:** Store and process historical player spatial-temporal telemetry securely using Amazon S3 and        AWS IAM.
 5.  **Implement Live Monitoring:** Monitor edge-to-client network health, track packet loss, and visualize latency metrics       in real-time using Amazon CloudWatch dashboards.
 
-
+---
 
 ### Proposed Architecture/Framework
 The proposed Edge Intelligence framework operates on a three-tier architecture to eliminate multiplayer desynchronization:
@@ -31,7 +31,7 @@ The proposed Edge Intelligence framework operates on a three-tier architecture t
 *   **The VIP Express Lane (eBPF / Kernel Bypass):** An eBPF program sits at the server's hardware level to scan incoming        UDP packets. High-priority packets bypass the standard Linux kernel queue and are routed instantly to the game engine.
 *   **The AI Safety Net (Mamba State-Space Model):** A lightweight State-Space Model (SSM) runs on the edge node. When a         player's connection drops, the model analyzes their past trajectory and synthesizes the missing movement frames, keeping     the game smooth until the connection returns.
 
-
+---
 
 ### Technology Stack
 *   **AWS Cloud Services:** AWS Wavelength, Amazon EC2, Amazon S3, Amazon SageMaker, Amazon CloudWatch, AWS IAM, Amazon API      Gateway.
