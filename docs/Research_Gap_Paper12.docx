@@ -1,1 +1,7 @@
-Gap: Client-side interpolation vs server-side synthesis
+The eXpress Data Path: Fast Programmable Packet Processing in the OS Kernel (Høiland-Jørgensen et al., 2018)
+Method: Runs eBPF bytecode in the network driver before kernel memory allocation.
+Dataset: Linux routing & DDoS benchmarks.
+Advantages: Processes up to 24 million packets per second per core.
+Limitations: Primarily used for simple packet dropping and firewalling.
+Research Gap: Adapting XDP for active, application-aware QoS scheduling.
+Possible Improvements: Uses XDP as an active QoS router to prioritize UDP game traffic and trigger AI state fixes.
