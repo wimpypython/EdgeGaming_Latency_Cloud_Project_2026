@@ -1,1 +1,7 @@
-Gap: Cross-platform game client state synchronization
+Bento: High-Performance Network Telemetry using eBPF (Choi et al., 2020)
+Method: Uses eBPF for deep, microsecond-level network telemetry monitoring.
+Dataset: Data center traces and synthetic traffic.
+Advantages: Captures network health metrics without slowing traffic.
+Limitations: Passive monitoring only; does not repair lost traffic.
+Research Gap: Linking real-time packet loss telemetry to instant state recovery.
+Possible Improvements: Uses eBPF packet loss telemetry to directly trigger Mamba state synthesis.
