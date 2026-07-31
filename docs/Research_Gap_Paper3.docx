@@ -1,1 +1,7 @@
-Research Gap for Paper 3: Spatial Trajectory Prediction
+VectorNet: Encoding HD Maps and Agent Trajectories for Trajectory Prediction (Gao et al., 2020)
+Method: Uses Graph Neural Networks (GNNs) on spatial vectors for tracking.
+Dataset: Argoverse motion forecasting dataset.
+Advantages: Operates directly on vector maps without lossy images.
+Limitations: Complex pipeline is too heavy for fast edge compute.
+Research Gap: Lightweight spatial trajectory models suited for edge nodes.
+Possible Improvements: Simplifies input to lightweight $x, y, z$ coordinates for fast edge inference.
