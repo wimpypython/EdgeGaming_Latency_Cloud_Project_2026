@@ -1,1 +1,7 @@
-Research Gap for Paper 5: ML Inference at the Edge
+Attention Is All You Need (Vaswani et al., 2017)
+Method: Uses self-attention mechanisms to process sequences in parallel.
+Dataset: WMT 2014 translation datasets.
+Advantages: Captures global relationships across long data sequences.
+Limitations: Quadratic scaling ($O(N^2)$) creates memory bloat and latency.
+Research Gap: Constant $O(1)$ memory inference for real-time game loops.
+Possible Improvements: Replaces heavy Transformer attention with linear $O(N)$ Mamba processing.
