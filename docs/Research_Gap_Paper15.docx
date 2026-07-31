@@ -1,1 +1,7 @@
-Gap: Real-time dashboard visualization for micro-latency spikes
+hXDP: Efficient Software Packet Processing on FPGA NICs (Brunella et al., 2020)
+Method: Offloads eBPF programs directly onto FPGA hardware (SmartNICs).
+Dataset: Synthetic packet processing traces
+Advantages: Achieves hardware-level speeds with zero host CPU usage.
+Limitations: Requires expensive, specialized FPGA hardware.
+Research Gap: Achieving near-hardware packet processing on standard cloud servers.
+Possible Improvements: Delivers near-hardware speeds using pure software eBPF on standard AWS EC2 nodes.
