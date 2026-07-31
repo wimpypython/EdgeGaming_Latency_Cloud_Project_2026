@@ -1,1 +1,7 @@
-Gap: UDP packet queue handling in default Linux kernel stacks
+Katran: A High Performance Layer 4 Load Balancer (Das et al., 2018)
+Method: Uses eBPF and XDP to build a Layer-4 load balancer for web traffic.
+Dataset: Meta production data center traffic.
+Advantages: Drastically reduces CPU overhead for network load balancing.
+Limitations: Optimized only for stateless web traffic, not game streams.
+Research Gap: Kernel-bypass routing tailored for stateful UDP game streams.
+Possible Improvements: Customizes eBPF routing to handle continuous, stateful game synchronization streams.
