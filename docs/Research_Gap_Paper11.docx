@@ -1,1 +1,7 @@
-Gap: UI latency in edge cloud gaming applications
+IX: A Protected Dataplane Operating System for High Throughput and Low Latency (Belay et al., 2014)
+Method: Separates control and data planes using a custom OS kernel.
+Dataset: Synthetic network traces, Memcached.
+Advantages: Delivers microsecond latency and high packet throughput.
+Limitations: Requires a non-standard, custom operating system.
+Research Gap: Achieving kernel bypass on standard, commodity cloud OS instances.
+Possible Improvements: Implements eBPF/XDP to get kernel-bypass speeds natively on standard Linux.
