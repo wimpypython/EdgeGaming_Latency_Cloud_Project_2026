@@ -1,1 +1,7 @@
-Gap: XDP packet dropping efficiency
+Kahawai: High-Quality Mobile Gaming Using GPU Offload (Cuervo et al., 2015)
+Method: Splits graphic rendering between mobile device GPU and cloud server.
+Dataset: idTech 4 engine benchmarks.
+Advantages: Cuts network bandwidth usage down to 1/6th of thin clients.
+Limitations: Graphic quality drops significantly during connection drops.
+Research Gap: Maintaining visual quality when the client-cloud link drops.
+Possible Improvements: Offloads complete state synthesis to the 5G edge to keep visuals pristine.
