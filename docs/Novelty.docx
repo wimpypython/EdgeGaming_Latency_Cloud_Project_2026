@@ -1,1 +1,5 @@
-Novelty: Moving state prediction from client to edge using SSMs.
+Active Edge State Synthesis: Replaces passive video bitrate reduction with active AI-driven state generation right inside the 5G network hub.
+Driver-Level Kernel Bypass: Implements eBPF/XDP at the Network Interface Card (NIC) driver level to bypass standard Linux OS networking queues and instantly trigger AI frame 
+                            recovery upon packet loss.
+Linear-Time 3D Trajectory Inference: Replaces computationally heavy Transformers and LSTMs with Mamba SSM, achieving $O(N)$ linear scaling and constant memory usage to 
+                                     infer 3D player coordinates in under a millisecond.
