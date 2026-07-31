@@ -1,2 +1,8 @@
-AWS Wavelength handles the edge compute. S3 stores datasets.
-Finalizing Wavelength integration map.
+AWS Wavelength: Deploy compute infrastructure directly within telecom 5G networks to minimize physical latency.
+Amazon EC2: Host the authoritative game server, execute the eBPF network routing, and run the Mamba AI model.
+Amazon VPC: Manage secure network routing and Carrier IPs between the 5G edge node and mobile clients.
+Amazon S3: Store large parsed match telemetry datasets, AI model weights, and long-term gameplay logs.
+AWS IAM: Secure access and strictly define permissions for edge nodes and developer resources.
+Amazon CloudWatch: Monitor real-time edge node performance, system health, and dropped-packet network telemetry.
+
+
