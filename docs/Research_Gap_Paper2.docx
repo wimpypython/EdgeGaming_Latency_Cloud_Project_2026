@@ -1,4 +1,4 @@
-2. Social LSTM: Human Trajectory Prediction in Crowded Spaces (Alahi et al., 2016)
+Social LSTM: Human Trajectory Prediction in Crowded Spaces (Alahi et al., 2016)
 Method: Links multiple LSTMs with a pooling layer to predict crowded movement.
 Dataset: ETH and UCY pedestrian datasets.
 Advantages: Accurately models complex human movement trajectories.
