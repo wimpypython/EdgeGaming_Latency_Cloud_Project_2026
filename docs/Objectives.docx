@@ -1,1 +1,4 @@
-Objectives: 1. Wavelength deployment. 2. eBPF filter. 3. Mamba state synthesis.
+Minimize Physical Latency: Deploy server workloads on AWS Wavelength to skip public internet backhaul hops and lower network response time.
+Eliminate OS Networking Delays: Build an eBPF/XDP packet scheduling pipeline to process UDP game traffic directly at the NIC level.
+Synthesize Lost Trajectories: Train a Mamba SSM on tick-level spatial data to accurately predict missing player $X, Y, Z$ coordinates during network drops.
+Prevent Client Rubber-Banding: Deliver authoritative, smoothly synchronized game states back to client screens without visual teleports or video degradation.
