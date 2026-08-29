@@ -1,0 +1,7 @@
+A hybrid graphics/video rate control method based on graphical assets for cloud gaming (Barman et al., 2018)
+Method: Adjusts video encoding bitrates dynamically based on network quality.
+Dataset: Subjective gaming video quality studies.
+Advantages: Optimizes video streaming under changing network conditions.
+Limitations: Only alters video quality, ignoring underlying game state lag.
+Research Gap: Repairing lost underlying state data before video encoding occurs.
+Possible Improvements: Synthesizes missing spatial telemetry at the state level before video encoding.
