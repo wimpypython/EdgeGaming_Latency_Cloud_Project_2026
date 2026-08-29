@@ -1,0 +1,7 @@
+Social LSTM: Human Trajectory Prediction in Crowded Spaces (Alahi et al., 2016)
+Method: Links multiple LSTMs with a pooling layer to predict crowded movement.
+Dataset: ETH and UCY pedestrian datasets.
+Advantages: Accurately models complex human movement trajectories.
+Limitations: Sequential processing makes LSTMs too slow for edge processing.
+Research Gap: Ultra-fast, non-sequential models for trajectory prediction.
+Possible Improvements: Replaces slow LSTMs with Mamba’s parallel, linear-time architecture.

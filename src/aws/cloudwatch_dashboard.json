@@ -1,0 +1,2 @@
+{ "widgets": [ { "type": "metric", "properties": { "metrics": [ [ "AWS/EC2", "NetworkIn" ] ] } } ] }
+# Added Jitter tracking

@@ -1,0 +1,7 @@
+efficiently Modeling Long Sequences with Structured State Spaces (S4) (Gu et al., 2022)
+Method: Uses structured continuous-time state spaces to model long sequences.
+Dataset: Long Range Arena (LRA) benchmark.
+Advantages: Efficiently processes long sequences (10k+ steps).
+Limitations: Parameters are fixed and cannot adapt dynamically to inputs.
+Research Gap: Input-dependent state adjustment for chaotic spatial motion.
+Possible Improvements: Upgrades to Mamba’s dynamic selection to handle erratic human player movements.
