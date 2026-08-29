@@ -1,0 +1,6 @@
+Mamba: Linear-Time Sequence Modeling with Selective State Spaces (Gu & Dao, 2024)
+Method: Uses dynamic State Space Models (SSMs) to select relevant information based on input.
+Dataset: Language, audio, and genomics datasets.Advantages: Fast linear scaling ($O(N)$) and constant memory usage.
+Limitations: Tested mainly on text/audio, not real-time 3D spatial data.
+Research Gap: Applying dynamic SSMs to high-frequency 3D gaming telemetry.
+Possible Improvements: Uses Mamba to predict 3D player positions in sub-millisecond game loops.
