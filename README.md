@@ -8,9 +8,9 @@
 
 | Member | Track | Owns |
 |---|---|---|
-| **Atharva** | ML & Data | `src/ml/` — dataset pipeline, SSM model, baselines, evaluation |
-| **Dhyaan** | Cloud & Networking | `src/net/` — netem harness, timing instrumentation, AWS |
-| **Sangeet** | Kernel & Frontend | `src/kernel/`, `demo/` — eBPF/XDP classifier, UDP traffic, dashboard |
+| **Atharva** | ML & Data | `src/ml_model/,dataset/` — dataset pipeline, SSM model, baselines, evaluation |
+| **Dhyaan** | Cloud & Networking | `src/aws/` — netem harness, timing instrumentation, AWS |
+| **Sangeet** | Kernel & Frontend | `src/backend/`, `srs/frontend` — eBPF/XDP classifier, UDP traffic, dashboard |
 
 ---
 
