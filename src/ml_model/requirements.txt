@@ -1,4 +1,7 @@
 torch>=2.0.0
 mamba-ssm
-sagemaker
 pandas
+h5py
+numpy
+matplotlib
+torch
