@@ -1,2 +1,4 @@
 *.npz 
 parsed_data.npz 
+*.pt
+__pycache__/
