@@ -1,0 +1,48 @@
+Reading  : C:\Users\Atharva\Downloads\sample_csknow\all_train_outputs\behaviorTreeTeamFeatureStore_28.hdf5
+History  : 16 rows
+Horizons : [1, 2, 3, 4, 6, 8, 12]  (62.5ms to 750.0ms)
+
+  rows   : 136,376
+  tick spacing : 99.97% of within-round gaps are exactly 8 ticks
+                 36 exceptions, gaps seen: [9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
+                 these became block boundaries, not bad rows
+  blocks : 359
+  games  : 25
+
+  CT 0:  51,969 examples
+  CT 1:  53,904 examples
+  CT 2:  45,541 examples
+  CT 3:  61,021 examples
+  CT 4:  54,632 examples
+  T 0:  78,539 examples
+  T 1:  79,541 examples
+  T 2:  70,938 examples
+  T 3:  81,329 examples
+  T 4:  78,210 examples
+
+Held-out games : [6, 7, 11, 14, 17]
+Test examples  : 112,613 (identical set at every horizon)
+  straight 45,020   gentle 20,738   sharp 2,977
+
+Dead reckoning error, held-out games, game units
+(1 unit ~ 1 inch; a player hitbox is ~32 units wide)
+
+  horizon      ms     null   DR med  DR 90th  DR 99th | straight  gentle   sharp   ratio
+  ----------------------------------------------------------------------------------------
+        1    62.5     6.32    0.696     2.68     8.81 |    0.940   1.115   1.801   1.92x
+        2   125.0    12.70    2.044     7.76    21.50 |    2.669   3.236   5.841   2.19x
+        3   187.5    18.75    3.946    15.20    37.04 |    5.260   6.145  10.971   2.09x
+        4   250.0    24.51    6.292    25.10    50.19 |    8.567   9.705  16.678   1.95x
+        6   375.0    34.97   11.889    49.30    83.08 |   16.766  18.076  29.290   1.75x
+        8   500.0    44.39   18.561    68.26   122.91 |   26.359  27.797  42.093   1.60x
+       12   750.0    61.24   33.585   111.44   216.61 |   46.994  50.002  66.493   1.41x
+
+  DR error grows as horizon^1.57   (straight h^1.60, turning h^1.45)
+  -> super-linear: error compounds. This is the regime where
+     a sequence model has something to contribute.
+
+  ratio = turning error / straight error. If it grows with
+  horizon, turns are where history pays off. If it stays flat,
+  they are not, and the project needs a different angle.
+
+Plot saved to horizon_sweep.png

@@ -1,0 +1,27 @@
+Loaded  : parsed_h1.npz
+X       : (676563, 16, 6)
+horizon : 1 row(s)
+dt      : 1 x 0.0625 = 0.0625 s
+
+Split by game (seed 0):
+  train :  560,401 examples   20 games
+  test  :  116,162 examples    5 games  (17.2%)
+  held-out game ids: [6, 7, 11, 14, 17]
+
+Error on held-out test set, game units (62.5ms ahead):
+  method               median     mean     90th     99th       max
+  null (no move)        6.271    6.640   14.998   21.392     40.13
+  dead reckoning        0.699    1.187    2.689    8.775     36.29
+
+  DR is 88.9% better than doing nothing (median)
+
+Dead reckoning error by how sharply the player is turning:
+                       median     mean     90th     99th       max   n
+  stationary            0.110    0.583    1.787    3.236     26.31   45,516
+  straight <5deg        0.944    1.531    3.507   10.786     32.05   46,318
+  gentle 5-20deg        1.119    1.595    3.140    8.372     36.29   21,263
+  sharp >=20deg         1.803    2.131    3.430    9.298     22.68   3,065
+
+
+This is the bar. A model must beat the dead reckoning row,
+not the null row, to have improved on current practice.
