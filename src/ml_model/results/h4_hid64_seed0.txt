@@ -1,0 +1,39 @@
+Loaded  : parsed_h4.npz
+X       : (670819, 16, 6)
+horizon : 4 rows (250.0 ms)
+
+Split by game (seed 0):
+  train :  555,629 examples   20 games
+  test  :  115,190 examples    5 games
+  held-out game ids: [6, 7, 11, 14, 17]
+
+Baselines on the held-out games (250 ms ahead):
+  null (no move)  median   24.37   90th   58.69
+  dead reckoning  median    6.32   90th   25.13
+
+  THE BAR IS 6.32. Beating null is not a result.
+
+Model   : GRU hidden=64 layers=1  (14,019 parameters)
+Training: 10 epochs, batch 512, lr 0.001
+
+  epoch   train loss  val median  val 90th    vs DR    time
+  ------------------------------------------------------------
+      1        66.58       6.056     20.49     4.2%   60.6s *
+      2        53.51       6.090     20.17     3.7%   73.2s
+      3        52.38       5.932     20.03     6.2%   55.7s *
+      4        51.45       5.885     19.88     6.9%   47.9s *
+      5        50.82       5.973     19.63     5.5%   46.0s
+      6        50.30       5.722     19.68     9.5%   44.5s *
+      7        49.80       6.147     19.50     2.8%   45.0s
+      8        49.44       6.312     19.51     0.2%   42.7s
+      9        49.11       5.783     19.38     8.5%   41.1s
+     10        48.86       5.753     19.35     9.0%   40.7s
+
+  * = best so far, saved to gru_h4_s0.pt
+
+Best validation median : 5.722 units
+Dead reckoning         : 6.323 units
+Null baseline          : 24.366 units
+
+  The model beats dead reckoning by 9.5% on the held-out games.
+  Report this number, on these games, at this horizon.
