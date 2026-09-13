@@ -1,0 +1,7 @@
+Towards Edge-Assisted Cloud Gaming: Performance Evaluation and Optimization (Cai et al., 2021)
+Method: Offloads game engine execution to Mobile Edge Computing (MEC) nodes.
+Dataset: Simulated edge network topology traces.
+Advantages: Reduces physical distance and RTT compared to central clouds.
+Limitations: Does not fix packet loss occurring between edge and client.
+Research Gap: Software-level state repair operating directly on edge nodes.
+Possible Improvements: Combines edge topology with eBPF and AI synthesis to fix packet loss in software.

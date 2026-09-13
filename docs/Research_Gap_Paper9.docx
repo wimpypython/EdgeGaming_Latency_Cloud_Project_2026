@@ -1,0 +1,7 @@
+Cloud Gaming: Architecture and Performance (Shea et al., 2013)
+Method: Benchmarks network delay and jitter across cloud gaming platforms.
+Dataset: Real network probes of OnLive/Gaikai.
+Advantages: Proves latency above 80ms severely degrades player QoE.
+Limitations: Evaluated legacy, centralized internet data centers.
+Research Gap: Bypassing public internet backhaul to guarantee sub-80ms RTT.
+Possible Improvements: Deploys servers on AWS Wavelength inside 5G hubs to stay well below 80ms.

@@ -1,0 +1,4 @@
+Cloud gaming platforms frequently suffer from latency spikes, jitter, and visual stutter caused by distant data centers, standard operating system networking delays, and wireless packet loss. 
+This project presents an edge-native architecture designed to guarantee sub-millisecond state recovery and ultra-low latency for real-time multiplayer games.
+By deploying authoritative game servers on AWS Wavelength (directly inside 5G telecom hubs), implementing eBPF/XDP for driver-level kernel bypass routing, and integrating a linear-time Mamba Selective State Space Model (SSM), the system detects dropped UDP packets at the network card level and instantly predicts missing 3D player trajectories. 
+This approach maintains a synchronized, authoritative game state at the edge without sacrificing video quality or overloading network bandwidth.

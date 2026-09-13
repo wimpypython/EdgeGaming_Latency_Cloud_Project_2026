@@ -1,0 +1,7 @@
+Outatime: Using Speculation to Enable Low-Latency Continuous Interaction for Mobile Cloud Gaming (Lee et al., 2015)
+Method: Uses speculative execution to render multiple future possible frames.
+Dataset: Doom 3 and Fable 3 game logs.
+Advantages: Successfully masks up to 120ms of network latency.
+Limitations: Transmitting multiple video feeds chokes 5G network bandwidth.
+Research Gap: Latency masking without massive video bandwidth overhead.
+Possible Improvements: Predicts a single authoritative state on the edge node instead of sending multiple video feeds.
