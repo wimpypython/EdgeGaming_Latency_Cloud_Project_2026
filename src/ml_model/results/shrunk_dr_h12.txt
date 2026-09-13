@@ -1,0 +1,37 @@
+Checkpoint : gru_h12_s0.pt
+Horizon    : 12 rows (750 ms)
+Train      : 543,011 examples
+Test       : 112,613 examples (games [6, 7, 11, 14, 17])
+
+Fitted shrinkage on training games: alpha = 0.6849
+  (alpha = 1 would be plain dead reckoning; below 1 means DR
+   systematically overshoots at this horizon)
+
+Same, using velocity averaged over all 16 frames: alpha = 0.6959
+
+  method                 median     90th     99th
+  ----------------------------------------------
+  null (no move)         61.235   166.58   194.96
+  dead reckoning         33.585   111.44   216.61
+  shrunk DR              35.792    95.90   165.10
+  shrunk DR, avg vel     42.320   113.87   185.68
+  GRU                    30.243    84.38   140.79
+
+  Improvement over plain dead reckoning:
+                         median     90th
+  shrunk DR               -6.6%    13.9%
+  shrunk DR, avg vel     -26.0%    -2.2%
+  GRU                     10.0%    24.3%
+
+  Share of the GRU's 90th-percentile advantage that a scalar
+  correction already accounts for:
+    one scalar on instantaneous velocity : 57%
+    one scalar on window-averaged velocity: -9%
+
+  A scalar accounts for a substantial part of the
+  advantage, but not all of it. Report both numbers: the
+  trivial correction, and the residual the model adds on
+  top of it.
+
+  alpha was fitted on training games only. Fitting it on the
+  held-out games would be the same mistake as a random split.
