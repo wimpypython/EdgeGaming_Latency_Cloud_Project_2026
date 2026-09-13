@@ -1,0 +1,36 @@
+Burst-loss evaluation
+Each checkpoint scored at the horizon it was trained for, on
+its own held-out games.
+
+  gru_h4_s0.pt     horizon  4 (250.0 ms)  115,190 test examples
+  gru_h4_s1.pt     horizon  4 (250.0 ms)  110,938 test examples
+  gru_h8_s0.pt     horizon  8 (500.0 ms)  113,896 test examples
+  gru_h12_s0.pt    horizon 12 (750.0 ms)  112,613 test examples
+  gru_h12_s1.pt    horizon 12 (750.0 ms)  108,701 test examples
+
+Position error after a burst of lost updates, game units
+(1 unit ~ 1 inch; a player hitbox is ~32 units wide)
+
+   burst     ms  drops |  DR med  GRU med   gain |  DR 90th  GRU 90th   gain | checkpoint     
+  --------------------------------------------------------------------------------------------
+       4  250.0     16 |    6.32     5.72   9.5% |    25.13     19.68  21.7% | gru_h4_s0.pt   
+       4  250.0     16 |    6.03     5.43   9.9% |    25.01     19.09  23.7% | gru_h4_s1.pt   
+       8  500.0     32 |   18.62    17.14   8.0% |    68.25     52.44  23.2% | gru_h8_s0.pt   
+      12  750.0     48 |   33.59    30.24  10.0% |   111.44     84.38  24.3% | gru_h12_s0.pt  
+      12  750.0     48 |   32.70    29.56   9.6% |   111.76     85.97  23.1% | gru_h12_s1.pt  
+
+  DR degrades as burst^1.53, GRU as burst^1.53 (median)
+  DR degrades as burst^1.36, GRU as burst^1.35 (90th percentile)
+  A smaller exponent means the picture degrades more slowly.
+
+  Burst length at which the 90th-percentile error exceeds
+  a player's width (32 units):
+    dead reckoning   by 500 ms (68 units)
+    GRU              by 500 ms (52 units)
+
+Plot saved to burst_loss.png
+
+Note: each method makes ONE prediction across the blackout,
+not a step-by-step rollout. A real client would feed its own
+guess back in and predict again; that needs a model emitting a
+full frame, not just a position. Future work, not this.

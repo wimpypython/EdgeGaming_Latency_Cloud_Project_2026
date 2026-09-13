@@ -1,23 +1,36 @@
 """
 Parse the CSKnow feature store into training-ready arrays.
 
-WHAT THIS DOES
-    The HDF5 file stores every value as its own array, with names like
-    "data/player pos CT 0 t-17 y". That is unusable for PyTorch. This script
-    gathers those scattered arrays into two solid blocks of numbers:
+WHY THIS VERSION EXISTS (read this before changing anything)
+    The first version of this parser read the file's own "t-1", "t-2", ...
+    history fields. Measurement on 30 Aug 2026 (check_alignment.py) showed
+    those fields step TWO rows at a time -- 125ms, not the 62.5ms every
+    document assumed. That silently made the prediction gap 187.5ms while
+    calling it 62.5ms, and it would have made dead reckoning extrapolate a
+    third of the required distance.
 
-        X : (n_examples, history_len, 6)   the recent past
-        y : (n_examples, 3)                where the player actually went
-
-    The 6 features per timestep are position (x, y, z) and velocity (x, y, z).
+    So this version ignores the stored history fields completely and builds
+    history from the row timeline itself. Rows are 8 game ticks apart, which
+    this script verifies rather than assumes. Every frame in X is therefore
+    exactly 62.5ms from the next, and the gap from the last input frame to
+    the target is exactly HORIZON rows.
 
 WHAT ONE EXAMPLE LOOKS LIKE
-    Take one player at one moment. Look back HISTORY_LEN steps (each step is
-    62.5ms). That stack of positions and velocities is the input. The player's
-    position HORIZON steps later is the answer the model has to predict.
+    Row i is "now". X[i] is rows i-HISTORY_LEN+1 .. i inclusive, so the last
+    frame of X IS the current state. y[i] is the position at row i+HORIZON.
 
-    HORIZON = 1 means "predict 62.5ms ahead" -- roughly one lost packet.
-    HORIZON = 3 means "predict 187ms ahead"  -- a short burst of loss.
+        HORIZON = 1  ->  62.5ms ahead   (~4 dropped updates at 64Hz)
+        HORIZON = 3  ->  187.5ms ahead  (~12 dropped updates)
+
+    Note this is burst loss, not single-packet loss. A CS update interval is
+    15.6ms at 64Hz; 62.5ms is several consecutive drops. Say that, not
+    "one lost packet".
+
+WHAT A BLOCK IS
+    A block is one continuous stretch of gameplay: same game id, same round
+    id, and consecutive rows exactly 8 ticks apart. Examples never cross a
+    block boundary. Splitting train/test uses GAME id, not round id, because
+    rounds from one match share players, economy and site preferences.
 
 Usage:
     python parse_csknow.py
@@ -34,124 +47,230 @@ import numpy as np
 # Settings
 # ---------------------------------------------------------------------------
 
-DEFAULT_INPUT = r"C:\Users\Atharva\Downloads\sample_csknow\all_train_outputs\behaviorTreeTeamFeatureStore_28.hdf5"
+DEFAULT_INPUT = (
+    r"C:\Users\Atharva\Downloads\sample_csknow\all_train_outputs"
+    r"\behaviorTreeTeamFeatureStore_28.hdf5"
+)
 DEFAULT_OUTPUT = "parsed_data.npz"
 
-HISTORY_LEN = 16   # how many past steps to feed the model (max 48 in this data)
-HORIZON = 1        # how many steps ahead to predict
+HISTORY_LEN = 16        # past rows fed to the model, INCLUDING the current row
+HORIZON = 1             # rows ahead to predict
 
 TEAMS = ("CT", "T")
 SLOTS = (0, 1, 2, 3, 4)
 
-STEP_SECONDS = 0.0625   # 8 game ticks at 128 Hz
+TICKS_PER_ROW = 8       # verified, not assumed -- see build_blocks()
+STEP_SECONDS = 0.0625   # 8 ticks at 128 Hz
+
+# Fastest a CS player can plausibly move on the ground is ~250 u/s. Allow
+# generous headroom for falls and boosts; anything past this means the
+# example spans a teleport or a boundary we failed to catch.
+MAX_PLAUSIBLE_SPEED = 600.0
+
+# Nothing in CS moves this fast. A single example past this is a teleport,
+# which means an example crossed a boundary. Abort on one, not on a
+# percentage -- see the note next to the check.
+TELEPORT_SPEED = 1500.0
+
+
+# ---------------------------------------------------------------------------
+# Blocks
+# ---------------------------------------------------------------------------
+
+def build_blocks(round_ids, game_ids, ticks):
+    """
+    Label every row with a block index.
+
+    A new block starts wherever the game changes, the round changes, or the
+    tick gap is not exactly TICKS_PER_ROW. That last condition is what makes
+    this self-healing: if the file has hidden discontinuities, they become
+    block boundaries instead of silently corrupting a training example.
+    """
+    n = len(round_ids)
+    tick_gap = np.diff(ticks.astype(np.int64))
+
+    boundary = (
+        (np.diff(game_ids) != 0)
+        | (np.diff(round_ids) != 0)
+        | (tick_gap != TICKS_PER_ROW)
+    )
+    block_ids = np.concatenate([[0], np.cumsum(boundary)])
+
+    # Report how much of the file departs from the assumed spacing.
+    inside = ~((np.diff(game_ids) != 0) | (np.diff(round_ids) != 0))
+    if inside.sum():
+        bad = (tick_gap[inside] != TICKS_PER_ROW).sum()
+        pct = bad / inside.sum() * 100
+        print(f"  tick spacing : {100 - pct:.2f}% of within-round gaps are"
+              f" exactly {TICKS_PER_ROW} ticks")
+        if pct > 0:
+            odd = np.unique(tick_gap[inside][tick_gap[inside] != TICKS_PER_ROW])
+            print(f"                 {bad:,} exceptions, gaps seen: "
+                  f"{odd[:10].tolist()}")
+            print("                 these became block boundaries, not bad rows")
+        if pct > 20:
+            raise SystemExit(
+                "ABORT: over 20% of rows are not 8 ticks apart. The 16Hz "
+                "assumption is wrong. Investigate before parsing."
+            )
+    return block_ids
+
+
+# ---------------------------------------------------------------------------
+# Per-player extraction
+# ---------------------------------------------------------------------------
+
+def load_player(f, team, slot):
+    """Return feats (n_rows, 6) = [px py pz vx vy vz] and alive (n_rows,)."""
+    p = f"data/player pos {team} {slot}"
+    v = f"data/player velocity {team} {slot}"
+    pos = np.stack([f[f"{p} {ax}"][:] for ax in "xyz"], axis=1)
+    vel = np.stack([f[f"{v} {ax}"][:] for ax in "xyz"], axis=1)
+    alive = f[f"data/alive {team} {slot}"][:].astype(bool)
+    return np.concatenate([pos, vel], axis=1).astype(np.float32), alive
+
+
+def windows(feats, alive, block_ids, history_len, horizon):
+    """
+    Build every valid (history, target) pair for one player.
+
+    Returns X (m, history_len, 6), y (m, 3), and the row index of "now" for
+    each example so the caller can attach round and game labels.
+    """
+    n = len(feats)
+    rows = np.arange(n)
+
+    # Index matrix: row i looks back to i-history_len+1, ending AT i.
+    offsets = np.arange(-history_len + 1, 1)
+    hist_idx = rows[:, None] + offsets[None, :]          # (n, history_len)
+    tgt_idx = rows + horizon                             # (n,)
+
+    in_range = (hist_idx[:, 0] >= 0) & (tgt_idx < n)
+
+    # Clip so fancy indexing is safe; invalid rows get filtered out anyway.
+    safe_hist = np.clip(hist_idx, 0, n - 1)
+    safe_tgt = np.clip(tgt_idx, 0, n - 1)
+
+    # Every history row, and the target row, must sit in the same block.
+    same_block = (
+        (block_ids[safe_hist] == block_ids[:, None]).all(axis=1)
+        & (block_ids[safe_tgt] == block_ids)
+    )
+
+    # The player must be alive throughout the history and at the target.
+    alive_all = alive[safe_hist].all(axis=1) & alive[safe_tgt]
+
+    keep = in_range & same_block & alive_all
+    if not keep.any():
+        return None, None, None
+
+    X = feats[safe_hist[keep]]                           # (m, history_len, 6)
+    y = feats[safe_tgt[keep], :3]                        # (m, 3)
+    return X, y, rows[keep]
 
 
 # ---------------------------------------------------------------------------
 
-def load_player(f, team, slot, history_len):
-    """
-    Pull one player's history and current state out of the file.
-
-    Returns
-        hist : (n_rows, history_len, 6)  oldest step first
-        now  : (n_rows, 3)               current position
-        ok   : (n_rows,) bool            rows where this player is alive
-                                         and every history step is valid
-    """
-    p = f"data/player pos {team} {slot}"
-    v = f"data/player velocity {team} {slot}"
-
-    # Current position -- the "now" that history leads up to.
-    now = np.stack([f[f"{p} {ax}"][:] for ax in "xyz"], axis=1)
-
-    # History. In the file, t-1 is the most recent past step and t-48 the
-    # oldest, so we walk backwards to get oldest-first ordering.
-    steps = []
-    for t in range(history_len, 0, -1):
-        pos = np.stack([f[f"{p} t-{t} {ax}"][:] for ax in "xyz"], axis=1)
-        vel = np.stack([f[f"{v} t-{t} {ax}"][:] for ax in "xyz"], axis=1)
-        steps.append(np.concatenate([pos, vel], axis=1))   # (n_rows, 6)
-
-    hist = np.stack(steps, axis=1)   # (n_rows, history_len, 6)
-
-    # A row is only usable if the player is alive and the game actually
-    # recorded every history step (early in a round it hasn't yet).
-    ok = f[f"data/alive {team} {slot}"][:].astype(bool)
-    for t in range(1, history_len + 1):
-        ok &= f[f"data/player history valid {team} {slot} t-{t}"][:].astype(bool)
-
-    return hist, now, ok
-
-
 def build(input_path, output_path, history_len, horizon):
     print(f"Reading : {input_path}")
-    print(f"History : {history_len} steps ({history_len * STEP_SECONDS:.3f}s)")
-    print(f"Horizon : {horizon} step(s) ({horizon * STEP_SECONDS:.4f}s ahead)\n")
+    print(f"History : {history_len} rows "
+          f"({history_len * STEP_SECONDS:.3f}s, ending at the current row)")
+    print(f"Horizon : {horizon} row(s) "
+          f"({horizon * STEP_SECONDS:.4f}s ahead)\n")
 
-    all_X, all_y, all_round, all_player = [], [], [], []
+    all_X, all_y, all_round, all_game, all_player = [], [], [], [], []
 
     with h5py.File(input_path, "r") as f:
         round_ids = f["data/round id"][:]
+        game_ids = f["data/game id"][:]
+        ticks = f["data/game tick number"][:]
         n_rows = len(round_ids)
+
+        print(f"  rows         : {n_rows:,}")
+        block_ids = build_blocks(round_ids, game_ids, ticks)
+        n_blocks = block_ids[-1] + 1
+        print(f"  blocks       : {n_blocks:,}")
+        print(f"  games        : {len(np.unique(game_ids))}\n")
 
         for team in TEAMS:
             for slot in SLOTS:
-                hist, now, ok = load_player(f, team, slot, history_len)
-
-                # The answer lives HORIZON rows further down the file. Shift
-                # the current-position array back to line it up with history.
-                target = np.roll(now, -horizon, axis=0)
-
-                # Rolling wraps around the end of the file, and it also crosses
-                # round boundaries -- both would pair a player's history with
-                # a position from a completely different situation. Only keep
-                # rows where the target is genuinely HORIZON steps later in the
-                # same round.
-                same_round = np.zeros(n_rows, dtype=bool)
-                same_round[:-horizon] = round_ids[horizon:] == round_ids[:-horizon]
-
-                # The player must also still be alive when we check the answer.
-                alive_later = np.zeros(n_rows, dtype=bool)
-                alive_later[:-horizon] = ok[horizon:]
-
-                keep = ok & same_round & alive_later
-
-                if keep.sum() == 0:
+                feats, alive = load_player(f, team, slot)
+                X, y, at = windows(feats, alive, block_ids,
+                                   history_len, horizon)
+                if X is None:
                     print(f"  {team} {slot}: no usable rows, skipping")
                     continue
 
-                all_X.append(hist[keep])
-                all_y.append(target[keep])
-                all_round.append(round_ids[keep])
-                all_player.append(np.full(keep.sum(), f"{team}{slot}"))
+                all_X.append(X)
+                all_y.append(y)
+                all_round.append(round_ids[at])
+                all_game.append(game_ids[at])
+                all_player.append(np.full(len(at), f"{team}{slot}"))
 
-                print(f"  {team} {slot}: {keep.sum():>7,} examples "
-                      f"({keep.mean() * 100:4.1f}% of rows usable)")
+                print(f"  {team} {slot}: {len(at):>7,} examples "
+                      f"({len(at) / n_rows * 100:4.1f}% of rows usable)")
 
     X = np.concatenate(all_X).astype(np.float32)
     y = np.concatenate(all_y).astype(np.float32)
     rounds = np.concatenate(all_round)
+    games = np.concatenate(all_game)
     players = np.concatenate(all_player)
 
     print(f"\nTotal examples : {len(X):,}")
-    print(f"X shape        : {X.shape}   (examples, history, [px py pz vx vy vz])")
+    print(f"X shape        : {X.shape}   (examples, history, "
+          f"[px py pz vx vy vz])")
     print(f"y shape        : {y.shape}   (examples, [px py pz])")
 
-    # How far does a player actually travel over the prediction horizon? This
-    # is the scale your model's error should be judged against.
+    # -------------------------------------------------------------------
+    # Self-checks. These exist so a wrong assumption crashes the run
+    # instead of quietly producing a plausible-looking training set.
+    # -------------------------------------------------------------------
     last_pos = X[:, -1, :3]
     moved = np.linalg.norm(y - last_pos, axis=1)
-    print(f"\nDistance moved over {horizon} step(s), in game units:")
-    print(f"  median : {np.median(moved):7.1f}")
-    print(f"  mean   : {moved.mean():7.1f}")
-    print(f"  90th   : {np.percentile(moved, 90):7.1f}")
-    print(f"  max    : {moved.max():7.1f}")
-    print("\n  (A model whose error is much bigger than the median distance")
-    print("   moved is not doing anything useful.)")
+    implied_speed = moved / (horizon * STEP_SECONDS)
+
+    print(f"\nDistance moved over {horizon} row(s) "
+          f"({horizon * STEP_SECONDS:.4f}s), game units:")
+    print(f"  median : {np.median(moved):7.2f}")
+    print(f"  mean   : {moved.mean():7.2f}")
+    print(f"  90th   : {np.percentile(moved, 90):7.2f}")
+    print(f"  max    : {moved.max():7.2f}")
+    print(f"  implied median speed : {np.median(implied_speed):.1f} units/sec")
+
+    # A single teleport is proof the block logic failed, even though it is a
+    # tiny fraction of the data. Tested by deliberately removing the block
+    # guard: max speed hit 5,840 u/s while only 0.4% of examples were
+    # affected, so a percentage threshold alone would have let it through.
+    worst = implied_speed.max()
+    if worst > TELEPORT_SPEED:
+        raise SystemExit(
+            f"ABORT: an example implies {worst:.0f} u/s. That is a teleport, "
+            f"not movement. Some example spans a block boundary."
+        )
+
+    over = implied_speed > MAX_PLAUSIBLE_SPEED
+    if over.mean() > 0.01:
+        raise SystemExit(
+            f"ABORT: {over.mean()*100:.2f}% of examples imply speeds over "
+            f"{MAX_PLAUSIBLE_SPEED} u/s. Examples are probably spanning a "
+            f"boundary the block logic missed."
+        )
+    if over.any():
+        print(f"  ({over.sum():,} examples over {MAX_PLAUSIBLE_SPEED} u/s "
+              f"-- falls and boosts, under the 1% abort threshold)")
+
+    # Independent check: step distance measured INSIDE X, which never touches
+    # the target. Should be close to the target distance at horizon 1.
+    if history_len >= 2:
+        inner = np.linalg.norm(np.diff(X[:, :, :3], axis=1), axis=2)
+        print(f"\n  cross-check, median distance between consecutive frames"
+              f" inside X: {np.median(inner):.2f}")
+        print("  (measured 6.1 units per 62.5ms row on 30 Aug; these should"
+              " agree)")
 
     np.savez_compressed(
         output_path,
-        X=X, y=y, rounds=rounds, players=players,
+        X=X, y=y, rounds=rounds, games=games, players=players,
         history_len=history_len, horizon=horizon,
         step_seconds=STEP_SECONDS,
     )
@@ -160,21 +279,20 @@ def build(input_path, output_path, history_len, horizon):
     print(f"\nSaved to {output_path} ({size_mb:.1f} MB)")
     print("\nLoad it later with:")
     print("    d = np.load('parsed_data.npz')")
-    print("    X, y = d['X'], d['y']")
+    print("    X, y, games = d['X'], d['y'], d['games']")
+    print("\nSplit train/test on 'games', not on 'rounds'.")
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--input", default=DEFAULT_INPUT)
     ap.add_argument("--output", default=DEFAULT_OUTPUT)
-    ap.add_argument("--history", type=int, default=HISTORY_LEN,
-                    help="past steps to use as input (max 48)")
-    ap.add_argument("--horizon", type=int, default=HORIZON,
-                    help="steps ahead to predict")
+    ap.add_argument("--history", type=int, default=HISTORY_LEN)
+    ap.add_argument("--horizon", type=int, default=HORIZON)
     args = ap.parse_args()
 
-    if not 1 <= args.history <= 48:
-        raise SystemExit("history must be between 1 and 48")
+    if args.history < 1:
+        raise SystemExit("history must be at least 1")
     if args.horizon < 1:
         raise SystemExit("horizon must be at least 1")
 
