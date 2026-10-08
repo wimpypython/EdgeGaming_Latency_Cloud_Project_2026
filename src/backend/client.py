@@ -87,6 +87,18 @@ class Player:
         self.next_fire = rng.uniform(0.5, 3.0)
         self.firing_left = 0.0      # seconds remaining in the current burst
 
+        # Each player owns its sequence space, starting at 0.
+        #
+        # This is not a detail. The server detects loss by comparing a
+        # player's new seq against its last one: a jump from 400 to 412
+        # means eleven updates vanished. A single counter shared across
+        # players would make every player appear to skip (n_players - 1)
+        # packets per tick, and the server would report 67% loss on a
+        # perfect link with three players.
+        #
+        # Real netcode works this way too -- loss is per connection.
+        self.seq = 0
+
         # Velocity is stored, not recomputed at send time, so that what is
         # transmitted is exactly what moved the player. If these two ever
         # disagree, dead reckoning is being fed a lie and every error
@@ -186,7 +198,7 @@ def run(host, port, n_players, rate_hz, seconds, seed, quiet):
           f"for {seconds:g}s")
     print(f"{ticks:,} ticks, {ticks * n_players:,} packets total\n")
 
-    seq = 0
+    tick = 0
     sent = 0
     intent = 0
     start = time.perf_counter()
@@ -197,15 +209,16 @@ def run(host, port, n_players, rate_hz, seconds, seed, quiet):
             f = p.flags(dt)
             if f:
                 intent += 1
-            sock.sendto(encode(p.to_packet(seq, f)), (host, port))
-            seq += 1
+            sock.sendto(encode(p.to_packet(p.seq, f)), (host, port))
+            p.seq += 1
             sent += 1
+        tick += 1
 
         # Busy-wait the last millisecond. sleep() alone is not accurate
         # enough at 15.6 ms intervals -- the OS routinely overshoots by
         # several milliseconds, which would make the send rate lower than
         # requested and quietly bias any timing measurement.
-        target = start + (seq / n_players) * dt
+        target = start + tick * dt
         while True:
             left = target - time.perf_counter()
             if left <= 0:
