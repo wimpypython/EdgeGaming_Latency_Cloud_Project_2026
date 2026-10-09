@@ -1,1 +1,379 @@
-<!DOCTYPE html><html><head><title>Latency Dashboard</title></head><body><h1>Latency Monitor</h1></body></html>
+<!DOCTYPE html>
+<!--
+  EdgeGaming live dashboard.
+
+  WHAT IT SHOWS
+      Players as the SERVER believes them, polled from server_sync.py.
+      During an outage that belief is a guess; when the outage ends the
+      belief snaps to the truth that just arrived, and the length of
+      that snap IS the concealment error. The snap is drawn as a flash
+      line labelled in game units.
+
+      That makes the comparison physical. Switch to freeze, inject
+      750 ms, watch a long snap. Switch to dead reckoning, inject the
+      same 750 ms, watch a short one.
+
+  WHY IT MUST BE A LOCAL FILE
+      It fetches http://localhost:8080. A page served from anywhere
+      else cannot reach your machine's localhost.
+
+  RUN
+      python server_sync.py          (window 1)
+      python client.py --players 3 --seconds 600   (window 2)
+      open this file in a browser
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EdgeGaming Live</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --page:           #0d0d0d;
+    --panel:          #212120;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --muted:          #898781;
+    --grid:           #2c2c2a;
+    --rule:           #383835;
+    --series-1:       #3987e5;   /* believed position */
+    --series-2:       #d95926;   /* intent / firing */
+    --warning:        #fab219;   /* concealing */
+    --critical:       #d03b3b;   /* the correction snap */
+    --good:           #0ca30c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--page); color: var(--text-primary);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  header {
+    padding: 14px 16px; border-bottom: 1px solid var(--rule);
+    display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+  }
+  h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  .conn { font-size: 12px; color: var(--muted); }
+  .conn.bad { color: var(--critical); }
+  /* The map and the numbers must be visible at the same time -- in a
+     demo nobody should be scrolling to find the result. So the canvas is
+     sized by HEIGHT to fit the viewport and stays square, and the panel
+     column scrolls on its own if it overflows. */
+  .wrap {
+    display: grid; grid-template-columns: 1fr 300px; gap: 16px;
+    padding: 16px; align-items: start;
+    height: calc(100vh - 54px);
+  }
+  .side { height: 100%; overflow-y: auto; padding-right: 4px; }
+  .mapwrap { height: 100%; display: flex; justify-content: center; }
+  canvas {
+    height: 100%; width: auto; max-width: 100%; aspect-ratio: 1;
+    background: var(--surface-1);
+    border: 1px solid var(--rule); border-radius: 6px; display: block;
+  }
+  @media (max-width: 860px) {
+    .wrap { grid-template-columns: 1fr; height: auto; }
+    .side { height: auto; overflow: visible; }
+    canvas { height: auto; width: 100%; }
+  }
+  .panel {
+    background: var(--panel); border: 1px solid var(--rule);
+    border-radius: 6px; padding: 14px; margin-bottom: 14px;
+  }
+  .panel h2 {
+    font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--muted); margin: 0 0 10px; font-weight: 600;
+  }
+  .row {
+    display: flex; justify-content: space-between; gap: 10px;
+    padding: 3px 0; font-variant-numeric: tabular-nums;
+  }
+  .row span:first-child { color: var(--text-secondary); }
+  .big {
+    font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums;
+  }
+  .seg { display: flex; gap: 0; margin-bottom: 10px; }
+  .seg button {
+    flex: 1; padding: 8px; border: 1px solid var(--rule);
+    background: transparent; color: var(--text-secondary);
+    cursor: pointer; font: inherit;
+  }
+  .seg button:first-child { border-radius: 4px 0 0 4px; }
+  .seg button:last-child  { border-radius: 0 4px 4px 0; border-left: 0; }
+  .seg button[aria-pressed="true"] {
+    background: var(--series-1); color: #fff; border-color: var(--series-1);
+  }
+  .inj { display: flex; gap: 6px; }
+  .inj button {
+    flex: 1; padding: 8px 0; border: 1px solid var(--rule);
+    border-radius: 4px; background: transparent; color: var(--text-primary);
+    cursor: pointer; font: inherit; font-variant-numeric: tabular-nums;
+  }
+  .inj button:hover { border-color: var(--warning); color: var(--warning); }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 4px 0; }
+  th:first-child, td:first-child { text-align: left; color: var(--text-secondary); }
+  th { color: var(--muted); font-weight: 600; font-size: 11px;
+       border-bottom: 1px solid var(--rule); }
+  .note { font-size: 12px; color: var(--muted); margin-top: 10px; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+         margin-right: 6px; vertical-align: 1px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>EdgeGaming — live packet-loss concealment</h1>
+  <span class="conn" id="conn">connecting…</span>
+</header>
+
+<div class="wrap">
+  <div class="mapwrap"><canvas id="map" width="900" height="900"></canvas></div>
+
+  <div class="side">
+    <div class="panel">
+      <h2>Concealment method</h2>
+      <div class="seg">
+        <button id="m-dr" aria-pressed="true">Dead reckoning</button>
+        <button id="m-freeze" aria-pressed="false">Freeze</button>
+      </div>
+      <div class="note">
+        What the server believes while packets are missing.
+        Freeze holds the last position; dead reckoning extrapolates
+        <code>pos + vel × t</code>, which is what real netcode does.
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Inject an outage</h2>
+      <div class="inj">
+        <button data-ms="250">250 ms</button>
+        <button data-ms="500">500 ms</button>
+        <button data-ms="750">750 ms</button>
+      </div>
+      <div class="note">
+        The server discards arriving packets for this long. Detected as a
+        sequence gap, exactly like real loss — no separate code path.
+        250–750 ms is the range where the methods measurably diverge.
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Last correction</h2>
+      <div class="big" id="lastErr">—</div>
+      <div class="note">
+        How far the server's guess was from the truth, in game units, at
+        the moment the last outage ended. A player hitbox is ~32 units.
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Concealment error</h2>
+      <table>
+        <thead><tr><th>method</th><th>median</th><th>90th</th></tr></thead>
+        <tbody>
+          <tr><td><span class="dot" style="background:var(--series-1)"></span>dead reckoning</td>
+              <td id="dr50">—</td><td id="dr90">—</td></tr>
+          <tr><td><span class="dot" style="background:var(--muted)"></span>freeze</td>
+              <td id="fz50">—</td><td id="fz90">—</td></tr>
+        </tbody>
+      </table>
+      <div class="note">Both scored on the same gaps, server-side.</div>
+    </div>
+
+    <div class="panel">
+      <h2>Link</h2>
+      <div class="row"><span>received</span><span id="recv">—</span></div>
+      <div class="row"><span>missing</span><span id="miss">—</span></div>
+      <div class="row"><span>loss</span><span id="loss">—</span></div>
+      <div class="row"><span>outage events</span><span id="events">—</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = "http://localhost:8080";
+const MAP_MIN = -2000, MAP_MAX = 2000;      // matches client.py
+const TRAIL = 45;          // ~4.5 s at the 10 Hz poll rate
+
+const cv = document.getElementById("map");
+const ctx = cv.getContext("2d");
+
+let snap = null;          // latest server state
+let snapAt = 0;           // performance.now() when it arrived
+let trails = new Map();   // id -> [{x,y}]
+let wasConcealing = new Map();
+let flashes = [];         // correction snaps being drawn
+let lastSeenPos = new Map();  // id -> believed pos while concealing
+
+const css = n => getComputedStyle(document.documentElement)
+                   .getPropertyValue(n).trim();
+
+function toPx(x, y) {
+  const s = cv.width / (MAP_MAX - MAP_MIN);
+  // y is negated: game y grows north, canvas y grows down.
+  return [(x - MAP_MIN) * s, cv.height - (y - MAP_MIN) * s];
+}
+
+async function poll() {
+  try {
+    const r = await fetch(API + "/state", { cache: "no-store" });
+    const d = await r.json();
+    onState(d);
+    setConn(true);
+  } catch (e) {
+    setConn(false);
+  }
+}
+
+function setConn(ok) {
+  const el = document.getElementById("conn");
+  if (ok) {
+    el.textContent = "connected to server_sync on :8080";
+    el.classList.remove("bad");
+  } else {
+    el.textContent = "no server on :8080 — is server_sync.py running?";
+    el.classList.add("bad");
+  }
+}
+
+function onState(d) {
+  snap = d; snapAt = performance.now();
+
+  for (const p of d.players) {
+    // Trail of where the server believed the player to be.
+    if (!trails.has(p.id)) trails.set(p.id, []);
+    const t = trails.get(p.id);
+    t.push({ x: p.believed[0], y: p.believed[1] });
+    if (t.length > TRAIL) t.shift();
+
+    // Detect the end of an outage: the frame where concealing goes
+    // false after being true. The distance between what we last
+    // believed and the truth that just arrived is the error.
+    const was = wasConcealing.get(p.id) || false;
+    if (was && !p.concealing) {
+      const guess = lastSeenPos.get(p.id);
+      if (guess) {
+        const dx = p.last_real[0] - guess.x, dy = p.last_real[1] - guess.y;
+        const err = Math.hypot(dx, dy);
+        flashes.push({ from: guess, to: { x: p.last_real[0], y: p.last_real[1] },
+                       err, born: performance.now() });
+        document.getElementById("lastErr").textContent =
+          err.toFixed(1) + " units";
+      }
+    }
+    if (p.concealing) {
+      lastSeenPos.set(p.id, { x: p.believed[0], y: p.believed[1] });
+    }
+    wasConcealing.set(p.id, p.concealing);
+  }
+
+  const s = d.stats;
+  const f = v => v === null || v === undefined ? "—" : v.toFixed(2);
+  document.getElementById("dr50").textContent = f(s.error_median_dr);
+  document.getElementById("dr90").textContent = f(s.error_p90_dr);
+  document.getElementById("fz50").textContent = f(s.error_median_freeze);
+  document.getElementById("fz90").textContent = f(s.error_p90_freeze);
+  document.getElementById("recv").textContent = s.received.toLocaleString();
+  document.getElementById("miss").textContent = s.missing.toLocaleString();
+  document.getElementById("loss").textContent = s.loss_pct.toFixed(2) + "%";
+  document.getElementById("events").textContent = s.outage_events;
+
+  document.getElementById("m-dr").setAttribute(
+    "aria-pressed", d.method === "dr");
+  document.getElementById("m-freeze").setAttribute(
+    "aria-pressed", d.method === "freeze");
+}
+
+function drawGrid() {
+  ctx.strokeStyle = css("--grid"); ctx.lineWidth = 1;
+  for (let i = 0; i <= 8; i++) {
+    const v = cv.width * i / 8;
+    ctx.beginPath(); ctx.moveTo(v, 0); ctx.lineTo(v, cv.height); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, v); ctx.lineTo(cv.width, v); ctx.stroke();
+  }
+}
+
+function render() {
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  drawGrid();
+
+  if (snap) {
+    // Smooth between polls by extrapolating with the reported velocity.
+    // Polling at 10 Hz and drawing only on poll would look like a
+    // slideshow and would be mistaken for packet loss.
+    const dt = (performance.now() - snapAt) / 1000;
+
+    for (const p of snap.players) {
+      const t = trails.get(p.id) || [];
+      ctx.strokeStyle = p.concealing ? css("--warning") : css("--series-1");
+      ctx.globalAlpha = 0.35; ctx.lineWidth = 2;
+      ctx.beginPath();
+      t.forEach((q, i) => {
+        const [px, py] = toPx(q.x, q.y);
+        i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+      });
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+
+      const x = p.believed[0] + p.vel[0] * dt;
+      const y = p.believed[1] + p.vel[1] * dt;
+      const [px, py] = toPx(x, y);
+
+      if (p.concealing) {
+        // A growing ring: the longer we have been guessing, the less
+        // the dot should be trusted.
+        const r = 10 + Math.min(26, p.concealed_for_ms / 24);
+        ctx.strokeStyle = css("--warning");
+        ctx.lineWidth = 2; ctx.setLineDash([4, 4]);
+        ctx.beginPath(); ctx.arc(px, py, r, 0, 7); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = css("--warning");
+        ctx.font = "11px system-ui, sans-serif";
+        ctx.fillText(Math.round(p.concealed_for_ms) + " ms", px + r + 4, py + 4);
+      }
+
+      ctx.fillStyle = p.intent ? css("--series-2") : css("--series-1");
+      ctx.beginPath(); ctx.arc(px, py, 7, 0, 7); ctx.fill();
+      ctx.strokeStyle = css("--surface-1"); ctx.lineWidth = 2; ctx.stroke();
+
+      ctx.fillStyle = css("--text-secondary");
+      ctx.font = "11px system-ui, sans-serif";
+      ctx.fillText("p" + p.id, px + 11, py - 9);
+    }
+
+    // Correction snaps, fading over 1.6 s.
+    const now = performance.now();
+    flashes = flashes.filter(f => now - f.born < 1600);
+    for (const f of flashes) {
+      const a = 1 - (now - f.born) / 1600;
+      const [ax, ay] = toPx(f.from.x, f.from.y);
+      const [bx, by] = toPx(f.to.x, f.to.y);
+      ctx.globalAlpha = a;
+      ctx.strokeStyle = css("--critical"); ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+      ctx.fillStyle = css("--critical");
+      ctx.beginPath(); ctx.arc(ax, ay, 4, 0, 7); ctx.fill();
+      ctx.font = "600 12px system-ui, sans-serif";
+      ctx.fillText(f.err.toFixed(1) + "u", (ax + bx) / 2 + 8, (ay + by) / 2);
+      ctx.globalAlpha = 1;
+    }
+  }
+  requestAnimationFrame(render);
+}
+
+document.getElementById("m-dr").onclick = () =>
+  fetch(API + "/conceal?method=dr").then(poll);
+document.getElementById("m-freeze").onclick = () =>
+  fetch(API + "/conceal?method=freeze").then(poll);
+document.querySelectorAll(".inj button").forEach(b => {
+  b.onclick = () => fetch(API + "/inject?ms=" + b.dataset.ms);
+});
+
+setInterval(poll, 100);
+poll();
+render();
+</script>
+</body>
+</html>

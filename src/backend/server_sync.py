@@ -60,10 +60,14 @@ THEN, from the sending machine:
 
 import argparse
 import collections
+import json
 import math
 import socket
 import sys
+import threading
 import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlparse, parse_qs
 
 from packet import decode, is_egp1, END_SEQ, BadPacket, INTENT_MASK
 
@@ -228,28 +232,174 @@ def report(players, method, rate):
     print("=" * 66)
 
 
-def serve(port, rate, method, seconds, quiet):
-    interval = 1.0 / rate
+class World:
+    """Everything the receive loop owns and the HTTP thread reads.
+
+    The two run concurrently, so every access goes through `lock`.
+    Without it the dashboard can read a player mid-update and render a
+    position whose x is new and whose y is old -- a rare, intermittent
+    jump that looks like a physics bug and is miserable to track down.
+    """
+
+    def __init__(self, rate, method):
+        self.lock = threading.Lock()
+        self.players = {}
+        self.rate = rate
+        self.interval = 1.0 / rate
+        self.method = method
+        self.not_ours = 0
+        self.started = None
+
+        # Packets arriving before this monotonic time are discarded.
+        # The dashboard sets it to stage an outage on demand.
+        #
+        # Discarded, not special-cased: loss is detected by sequence
+        # gap, so an injected drop is indistinguishable from a real one
+        # and flows through exactly the same gap arithmetic, the same
+        # concealment and the same error measurement. There is no
+        # separate code path that could behave differently in the demo
+        # than it does under netem.
+        self.drop_until = 0.0
+
+    def snapshot(self, now):
+        """JSON-safe view of the world. Called from the HTTP thread."""
+        with self.lock:
+            players = []
+            for pid in sorted(self.players):
+                p = self.players[pid]
+                bx, by, bz = p.believed_position(now, self.method)
+                players.append({
+                    "id": pid,
+                    "believed": [round(bx, 2), round(by, 2), round(bz, 2)],
+                    "last_real": [round(v, 2) for v in p.pos],
+                    "vel": [round(v, 2) for v in p.vel],
+                    "view": [round(v, 2) for v in p.view],
+                    "flags": p.flags,
+                    "intent": bool(p.flags & INTENT_MASK),
+                    "seq": p.seq,
+                    "concealing": p.is_concealing(now, self.interval),
+                    "concealed_for_ms": round(
+                        max(0.0, now - p.last_real) * 1000.0, 1),
+                    "received": p.received,
+                    "missing": p.missing,
+                })
+
+            dr = [e for p in self.players.values() for e in p.errors_dr]
+            fz = [e for p in self.players.values() for e in p.errors_freeze]
+            recv = sum(p.received for p in self.players.values())
+            miss = sum(p.missing for p in self.players.values())
+            events = sum(len(p.outages) for p in self.players.values())
+
+            return {
+                "method": self.method,
+                "rate": self.rate,
+                "dropping": now < self.drop_until,
+                "drop_remaining_ms": round(
+                    max(0.0, self.drop_until - now) * 1000.0),
+                "players": players,
+                "stats": {
+                    "received": recv,
+                    "missing": miss,
+                    "loss_pct": round(miss / (recv + miss) * 100, 2)
+                                if recv + miss else 0.0,
+                    "outage_events": events,
+                    "error_median_dr": round(percentile(dr, 0.5), 2)
+                                       if dr else None,
+                    "error_median_freeze": round(percentile(fz, 0.5), 2)
+                                           if fz else None,
+                    "error_p90_dr": round(percentile(dr, 0.9), 2)
+                                    if dr else None,
+                    "error_p90_freeze": round(percentile(fz, 0.9), 2)
+                                        if fz else None,
+                },
+            }
+
+
+def make_handler(world):
+    class Handler(BaseHTTPRequestHandler):
+
+        def _send(self, payload, code=200):
+            body = json.dumps(payload).encode()
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            # The dashboard may be opened as a local file, which makes
+            # its origin "null". Without this the browser blocks every
+            # fetch and the page sits empty with only a console error.
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_GET(self):
+            u = urlparse(self.path)
+            q = parse_qs(u.query)
+
+            if u.path in ("/state", "/"):
+                self._send(world.snapshot(time.monotonic()))
+
+            elif u.path == "/conceal":
+                m = (q.get("method") or [""])[0]
+                if m not in ("dr", "freeze"):
+                    self._send({"error": "method must be dr or freeze"}, 400)
+                    return
+                with world.lock:
+                    world.method = m
+                self._send({"method": m})
+
+            elif u.path == "/inject":
+                try:
+                    ms = float((q.get("ms") or ["500"])[0])
+                except ValueError:
+                    self._send({"error": "ms must be a number"}, 400)
+                    return
+                # Capped: an unbounded value from a query string would
+                # silently wedge the server with no way back.
+                ms = max(0.0, min(5000.0, ms))
+                with world.lock:
+                    world.drop_until = time.monotonic() + ms / 1000.0
+                self._send({"dropping_for_ms": ms})
+
+            else:
+                self._send({"error": "not found"}, 404)
+
+        def log_message(self, *args):
+            pass        # polling a few times a second would flood stdout
+
+    return Handler
+
+
+def start_http(world, port):
+    srv = ThreadingHTTPServer(("", port), make_handler(world))
+    t = threading.Thread(target=srv.serve_forever, daemon=True)
+    t.start()
+    return srv
+
+
+def serve(port, rate, method, seconds, quiet, http_port):
+    world = World(rate, method)
+
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind(("", port))
     sock.settimeout(1.0)
 
-    players = {}
-    not_ours = 0
-    started = None
-    last_draw = 0.0
-
     print(f"listening on :{port}, concealing with '{method}'")
+    if http_port:
+        start_http(world, http_port)
+        print(f"state endpoint on http://0.0.0.0:{http_port}/state")
+        print(f"  toggle   : /conceal?method=dr|freeze")
+        print(f"  outage   : /inject?ms=500")
     print("waiting for packets (Ctrl-C to stop)")
     print()
 
+    last_draw = 0.0
     try:
         while True:
             try:
                 data, _ = sock.recvfrom(256)
             except socket.timeout:
-                if started and seconds and time.monotonic() - started >= seconds:
+                if (world.started and seconds
+                        and time.monotonic() - world.started >= seconds):
                     break
                 continue
 
@@ -266,41 +416,52 @@ def serve(port, rate, method, seconds, quiet):
             now = time.monotonic()
 
             if not is_egp1(data):
-                not_ours += 1
+                world.not_ours += 1
                 continue
             try:
                 pkt = decode(data)
             except BadPacket:
-                not_ours += 1
+                world.not_ours += 1
                 continue
 
             if pkt.seq == END_SEQ:
                 break
 
-            if started is None:
-                started = now
-            if pkt.player_id not in players:
-                players[pkt.player_id] = PlayerState(pkt.player_id, now)
-            players[pkt.player_id].apply(pkt, now)
+            # Injected outage: drop it on the floor. The sequence number
+            # is never recorded, so the next accepted packet registers as
+            # a gap through the normal path.
+            if now < world.drop_until:
+                continue
+
+            with world.lock:
+                if world.started is None:
+                    world.started = now
+                if pkt.player_id not in world.players:
+                    world.players[pkt.player_id] = PlayerState(
+                        pkt.player_id, now)
+                world.players[pkt.player_id].apply(pkt, now)
+                method_now = world.method
 
             if not quiet and now - last_draw > 0.5:
                 last_draw = now
-                bits = []
-                for pid in sorted(players):
-                    p = players[pid]
-                    x, y, _ = p.believed_position(now, method)
-                    mark = "~" if p.is_concealing(now, interval) else " "
-                    bits.append(f"p{pid}{mark}({x:7.0f},{y:7.0f})")
+                with world.lock:
+                    bits = []
+                    for pid in sorted(world.players):
+                        p = world.players[pid]
+                        x, y, _ = p.believed_position(now, method_now)
+                        mark = "~" if p.is_concealing(
+                            now, world.interval) else " "
+                        bits.append(f"p{pid}{mark}({x:7.0f},{y:7.0f})")
                 print("\r  " + "  ".join(bits), end="", flush=True)
 
-            if started and seconds and now - started >= seconds:
+            if world.started and seconds and now - world.started >= seconds:
                 break
     except KeyboardInterrupt:
         pass
 
-    if not_ours:
-        print(f"\n  ({not_ours} packets ignored -- wrong size or magic)")
-    report(players, method, rate)
+    if world.not_ours:
+        print(f"\n  ({world.not_ours} packets ignored -- wrong size or magic)")
+    report(world.players, world.method, rate)
 
 
 def self_test():
@@ -363,6 +524,8 @@ def main():
     ap.add_argument("--seconds", type=float, default=0.0,
                     help="0 means until Ctrl-C or end-of-run packet")
     ap.add_argument("--quiet", action="store_true")
+    ap.add_argument("--http", type=int, default=8080,
+                    help="port for the JSON state endpoint, 0 to disable")
     ap.add_argument("--self-test", action="store_true",
                     help="check the arithmetic, no network")
     args = ap.parse_args()
@@ -371,7 +534,8 @@ def main():
         self_test()
         return
 
-    serve(args.port, args.rate, args.conceal, args.seconds, args.quiet)
+    serve(args.port, args.rate, args.conceal, args.seconds, args.quiet,
+          args.http)
 
 
 if __name__ == "__main__":
