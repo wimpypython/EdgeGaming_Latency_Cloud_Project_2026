@@ -1,0 +1,48 @@
+GRU ladder: h4=250ms(gru_h4_s0.pt, hidden 64)  h8=500ms(gru_h8_s0.pt, hidden 64)  h12=750ms(gru_h12_s0.pt, hidden 64)  (history: every 1 packet, rung policy: nearest)
+gap duration from sequence numbers (62.500 ms per frame), not the wall clock
+listening on :27015, concealing with 'gru'
+state endpoint on http://0.0.0.0:8123/state
+  toggle   : /conceal?method=dr|freeze|gru
+  outage   : /inject?ms=500
+waiting for packets (Ctrl-C to stop)
+
+
+==================================================================
+  players seen   : 145
+  received       : 45,388
+  missing by seq : 2,526  (5.27%)
+
+  outage events  : 280
+  mean gap       : 9.0 packets = 626 ms
+  longest gap    : 70 packets = 4438 ms
+
+  CONCEALMENT ERROR over 280 gaps, game units
+  method              median      90th       max    gaps
+  freeze               30.91    128.50    475.44     280
+  dead reckoning       16.41    107.32   1178.83     280
+  GRU                  13.64     91.40    460.18     242
+    (DR, GRU gaps)     16.45    109.08   1178.83     242
+
+  Dead reckoning beats freeze by 46.9% at the median.
+
+  The GRU beats dead reckoning by 17.1% at the median, on
+  the 242 of 280 gaps it answered -- compared against
+  dead reckoning on those same gaps, not on all of them.
+
+  GRU declined     : 0 too short (<125 ms), 38 incomplete history, 0 unavailable
+  beyond horizon   : 77 gaps longer than 750 ms, answered by the top rung outside its training range
+
+  BY GAP LENGTH -- GRU vs dead reckoning on the same gaps
+  band                    n   DR med  GRU med   DR p90  GRU p90   median
+  ---------------------------------------------------------------------
+  in range, <=250 ms     68     3.04     3.29    14.68    10.33    -8.3%
+  in range, 250-500      70    17.25    12.57    52.30    37.53    27.1%
+  in range, 500-750      37    56.09    50.29   135.56    95.39    10.3%
+  BEYOND 750 ms          67    53.51    46.44   211.12   150.71    13.2%
+  Positive in the last column means the GRU was closer.
+  The last band is outside every rung's training range: the
+  hook extrapolates past the horizon there, so that row says
+  nothing about how well the model predicts.
+
+  Same gaps scored every way, so no method got easier cases.
+==================================================================

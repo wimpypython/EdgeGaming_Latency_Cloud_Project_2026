@@ -1,0 +1,15 @@
+listening on :27015 -- start the sender now (Ctrl-C to stop early)
+
+==============================================================
+  expected   : 1,280 packets (seq 0..1279)
+  received   : 1,280
+  lost       : 0  (0.00%)
+
+  one-way delay, ms (ONLY meaningful if clocks agree):
+    median 0.11   90th 0.14   max 14.99
+    Trust the SPREAD; treat the absolute value as suspect.
+
+  No loss. If you configured loss and see none, netem is not
+  on the path this traffic takes. Loopback traffic never
+  reaches ens5 -- put netem on lo for a same-box test.
+==============================================================

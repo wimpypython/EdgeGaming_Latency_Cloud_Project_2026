@@ -1,0 +1,48 @@
+listening on :27015 -- start the sender now (Ctrl-C to stop early)
+
+==============================================================
+  expected   : 19,200 packets (seq 0..19199)
+  received   : 18,107
+  lost       : 1,093  (5.69%)
+
+  one-way delay, ms (ONLY meaningful if clocks agree):
+    median 0.11   90th 0.14   max 30.22
+    Trust the SPREAD; treat the absolute value as suspect.
+
+  loss events     : 28
+  mean run length : 39.0 packets = 610 ms
+  longest run     : 86 packets = 1344 ms
+
+  run length histogram
+       2 pkt (   31 ms) x1     #
+       3 pkt (   47 ms) x1     #
+       4 pkt (   62 ms) x1     #
+       5 pkt (   78 ms) x1     #
+      11 pkt (  172 ms) x1     #
+      12 pkt (  188 ms) x2     ##
+      17 pkt (  266 ms) x1     #
+      19 pkt (  297 ms) x2     ##
+      20 pkt (  312 ms) x1     #
+      23 pkt (  359 ms) x1     #
+      26 pkt (  406 ms) x1     #
+      30 pkt (  469 ms) x1     #
+      37 pkt (  578 ms) x2     ##
+      40 pkt (  625 ms) x1     #
+      58 pkt (  906 ms) x1     #
+      60 pkt (  938 ms) x1     #
+      63 pkt (  984 ms) x1     #
+      65 pkt ( 1016 ms) x1     #
+      66 pkt ( 1031 ms) x1     #
+      67 pkt ( 1047 ms) x1     #
+      68 pkt ( 1062 ms) x1     #
+      74 pkt ( 1156 ms) x1     #
+      84 pkt ( 1312 ms) x1     #
+      85 pkt ( 1328 ms) x1     #
+      86 pkt ( 1344 ms) x1     #
+
+  -> Bursty, 610 ms mean outage.
+     In the range where the methods measurably diverge.
+
+  Loss rate varies a lot over short runs. Measure for a minute
+  or more before quoting a number.
+==============================================================

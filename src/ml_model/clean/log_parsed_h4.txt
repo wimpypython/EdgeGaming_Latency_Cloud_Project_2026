@@ -1,0 +1,52 @@
+Loaded  : parsed_h4.npz
+X       : (670819, 16, 6)
+horizon : 4 rows (250.0 ms)
+
+Three-way split by game (seed 0):
+  train  449,870 examples   16 games
+  val    105,759 examples    4 games
+  test   115,190 examples    5 games
+  val  games: [5, 8, 16, 18]
+  test games: [6, 7, 11, 14, 17]   <- touched once, at the end
+
+Validation baselines (250 ms ahead):
+  null            median   24.63
+  dead reckoning  median    6.43   <- the bar, on val
+
+Model   : GRU hidden=64 layers=1  (14,019 parameters)
+Training: 12 epochs, batch 512, lr 0.001
+
+  epoch   train loss  val median  vs DR(val)    time
+  ----------------------------------------------------
+      1        68.78       6.323        1.7%   30.4s *
+      2        53.42       6.181        3.9%   37.0s *
+      3        52.50       6.203        3.6%   40.2s
+      4        51.59       6.375        0.9%   33.3s
+      5        50.90       5.990        6.9%   31.3s *
+      6        50.37       5.902        8.2%   37.6s *
+      7        49.97       5.959        7.3%   41.9s
+      8        49.53       5.935        7.7%   47.5s
+      9        49.15       5.921        7.9%   47.1s
+     10        48.88       5.855        9.0%   54.8s *
+     11        48.64       5.898        8.3%   42.9s
+     12        48.41       6.034        6.2%   48.3s
+
+  best epoch 10 by validation median (5.855 units)
+
+============================================================
+  TEST SET, touched once, 115,190 examples (250 ms ahead)
+  method               median     90th
+  null (no move)        24.37    58.69
+  dead reckoning         6.32    25.13
+  GRU                    5.76    19.42
+
+  GRU beats dead reckoning by 9.0% at the median.
+  Chosen on validation, measured on test. No epoch was
+  selected using this number.
+============================================================
+
+saved clean\gru_h4_s0.pt
+
+Compare with the old checkpoint's reported figure. The
+difference is the selection bias the old script carried --
+expected to be small, and worth stating either way.

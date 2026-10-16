@@ -1,0 +1,52 @@
+GRU ladder: h4=250ms(gru_h4_s0.pt, hidden 64)  h8=500ms(gru_h8_s0.pt, hidden 64)  h12=750ms(gru_h12_s0.pt, hidden 64)  (history: every 1 packet, rung policy: cover)
+gap duration from sequence numbers (62.500 ms per frame), not the wall clock
+listening on :27015, concealing with 'gru'
+state endpoint on http://0.0.0.0:8123/state
+  toggle   : /conceal?method=dr|freeze|gru
+  outage   : /inject?ms=500
+waiting for packets (Ctrl-C to stop)
+
+
+==================================================================
+  players seen   : 145
+  received       : 45,236
+  missing by seq : 2,736  (5.70%)
+
+  outage events  : 284
+  mean gap       : 9.6 packets = 665 ms
+  longest gap    : 58 packets = 3688 ms
+
+  CONCEALMENT ERROR over 284 gaps, game units
+  method              median      90th       max    gaps
+  freeze               29.95    135.92    744.27     284
+  dead reckoning       15.03    127.96    889.99     284
+  GRU                  17.04     85.21    804.24     246
+    (DR, GRU gaps)     15.49    122.78    889.99     246
+
+  Dead reckoning beats freeze by 49.8% at the median.
+
+  The GRU beats dead reckoning by -10.0% at the median, on
+  the 246 of 284 gaps it answered -- compared against
+  dead reckoning on those same gaps, not on all of them.
+  NEGATIVE -- the model is losing to dead reckoning on
+  live traffic despite winning on the dataset. Most
+  likely the history window: check the stride and that
+  the generator's turn statistics resemble CSKnow's.
+
+  GRU declined     : 0 too short (<125 ms), 38 incomplete history, 0 unavailable
+  beyond horizon   : 87 gaps longer than 750 ms, answered by the top rung outside its training range
+
+  BY GAP LENGTH -- GRU vs dead reckoning on the same gaps
+  band                    n   DR med  GRU med   DR p90  GRU p90   median
+  ---------------------------------------------------------------------
+  in range, <=250 ms     65     4.13     3.80    16.72    17.83     8.2%
+  in range, 250-500      73    17.16    19.11    58.48    46.63   -11.4%
+  in range, 500-750      32    20.93    23.43    78.48    65.53   -12.0%
+  BEYOND 750 ms          76    53.85    46.36   242.68   157.11    13.9%
+  Positive in the last column means the GRU was closer.
+  The last band is outside every rung's training range: the
+  hook extrapolates past the horizon there, so that row says
+  nothing about how well the model predicts.
+
+  Same gaps scored every way, so no method got easier cases.
+==================================================================

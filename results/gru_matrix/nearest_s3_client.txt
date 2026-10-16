@@ -1,0 +1,27 @@
+dataset   : ..\ml_model\parsed_data.npz
+rate      : 16.000 Hz (62.500 ms per frame) -- the dataset's own rate, nothing resampled
+held-out  : games [6, 7, 11, 14, 17] (112,613 windows)
+usable    : 319 continuous trajectories
+  slot 0:  644 frames =   40.2s   median  112.9 u/s   still  7.3% of frames
+  slot 1:  644 frames =   40.2s   median   75.1 u/s   still 27.0% of frames
+  slot 2:  644 frames =   40.2s   median  119.6 u/s   still 18.2% of frames
+  slot 3:  644 frames =   40.2s   median  111.3 u/s   still  7.3% of frames
+  slot 4:  644 frames =   40.2s   median  111.8 u/s   still  5.7% of frames
+  slot 5:   78 frames =    4.9s   median   55.8 u/s   still 21.8% of frames
+  slot 6:  644 frames =   40.2s   median   15.8 u/s   still 36.8% of frames
+  slot 7:  440 frames =   27.5s   median  131.5 u/s   still 23.0% of frames
+  slot 8:  196 frames =   12.2s   median   80.5 u/s   still 13.3% of frames
+  slot 9:  156 frames =    9.8s   median   88.9 u/s   still 25.0% of frames
+  then rotating through 309 further held-out trajectories as each finishes
+
+replaying to 127.0.0.1:27015 for 300.0s -- run the server with --rate 16
+
+simulated burst loss at the sender: p=0.0062 r=0.1025
+  expected 5.70% loss, 610 ms mean burst (netem measured 5.69% / 610 ms)
+
+  dropped 2,764 of 48,000 (5.76%) at the sender
+
+
+sent 45,236 packets in 300.00s (150.8 pkt/s across 145 trajectories)
+every position on the wire was a recorded frame; none were generated or interpolated
+loss was simulated at the sender with the netem-measured parameters; this run is not a netem run
