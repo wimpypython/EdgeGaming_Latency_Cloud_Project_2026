@@ -1,0 +1,52 @@
+Loaded  : parsed_data.npz
+X       : (655624, 16, 6)
+horizon : 12 rows (750.0 ms)
+
+Three-way split by game (seed 0):
+  train  439,866 examples   16 games
+  val    103,145 examples    4 games
+  test   112,613 examples    5 games
+  val  games: [5, 8, 16, 18]
+  test games: [6, 7, 11, 14, 17]   <- touched once, at the end
+
+Validation baselines (750 ms ahead):
+  null            median   61.74
+  dead reckoning  median   33.70   <- the bar, on val
+
+Model   : GRU hidden=64 layers=1  (14,019 parameters)
+Training: 12 epochs, batch 512, lr 0.001
+
+  epoch   train loss  val median  vs DR(val)    time
+  ----------------------------------------------------
+      1      1034.49      33.512        0.6%   27.6s *
+      2       877.95      31.954        5.2%   28.8s *
+      3       860.26      31.391        6.8%   28.4s *
+      4       850.99      31.043        7.9%   28.2s *
+      5       845.95      31.702        5.9%   28.2s
+      6       841.92      31.561        6.3%  271.4s
+      7       838.00      30.658        9.0%   27.7s *
+      8       833.36      31.232        7.3%   24.0s
+      9       829.35      31.353        7.0%   27.0s
+     10       825.86      30.564        9.3%   24.9s *
+     11       822.55      30.600        9.2%   25.5s
+     12       819.13      30.275       10.2%   28.1s *
+
+  best epoch 12 by validation median (30.275 units)
+
+============================================================
+  TEST SET, touched once, 112,613 examples (750 ms ahead)
+  method               median     90th
+  null (no move)        61.24   166.58
+  dead reckoning        33.59   111.44
+  GRU                   29.80    84.62
+
+  GRU beats dead reckoning by 11.3% at the median.
+  Chosen on validation, measured on test. No epoch was
+  selected using this number.
+============================================================
+
+saved clean\gru_h12_s0.pt
+
+Compare with the old checkpoint's reported figure. The
+difference is the selection bias the old script carried --
+expected to be small, and worth stating either way.

@@ -1,0 +1,55 @@
+C:\Users\Atharva\EdgeGaming_Latency_Cloud_Project_2026\src\ml_model\transformer_model.py:95: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  self.enc = nn.TransformerEncoder(enc, num_layers=layers)
+Loaded  : parsed_h8.npz
+X       : (663197, 16, 6)
+horizon : 8 rows (500.0 ms)
+
+Three-way split by game (seed 0):
+  train  444,855 examples   16 games
+  val    104,446 examples    4 games
+  test   113,896 examples    5 games
+  val  games: [5, 8, 16, 18]
+  test games: [6, 7, 11, 14, 17]   <- touched once, at the end
+
+Validation baselines (500 ms ahead):
+  null            median   44.92
+  dead reckoning  median   18.69   <- the bar, on val
+
+Model   : Transformer d_model=32 layers=1 heads=4 ff=128  (13,539 parameters)
+Training: 12 epochs, batch 512, lr 0.001
+
+  epoch   train loss  val median  vs DR(val)    time
+  ----------------------------------------------------
+      1       353.65      18.778       -0.5%   31.5s *
+      2       320.50      18.603        0.4%   35.2s *
+      3       313.77      17.527        6.2%   35.2s *
+      4       310.26      17.186        8.0%   33.4s *
+      5       307.53      17.543        6.1%   28.5s
+      6       305.85      17.001        9.0%   30.0s *
+      7       304.58      18.285        2.1%   31.3s
+      8       303.62      16.997        9.0%   30.8s *
+      9       302.37      17.246        7.7%   35.5s
+     10       301.87      17.072        8.6%   35.3s
+     11       300.96      17.229        7.8%   42.9s
+     12       300.29      18.036        3.5%   57.3s
+
+  best epoch 8 by validation median (16.997 units)
+
+============================================================
+  TEST SET, touched once, 113,896 examples (500 ms ahead)
+  method               median     90th
+  null (no move)        44.19   114.18
+  dead reckoning        18.62    68.25
+  Transformer 32        16.65    52.50
+
+  Transformer 32 beats dead reckoning by 10.6% at the median.
+  Chosen on validation, measured on test. No epoch was
+  selected using this number.
+============================================================
+
+saved clean\tfm32_h8_s0.pt
+
+Compare against the GRU at this horizon, on these same
+test games. 13,539 parameters against the GRU's
+14,019 -- quote both, so the comparison cannot be read as
+one architecture simply having been given more capacity.

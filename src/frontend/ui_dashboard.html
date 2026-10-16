@@ -40,6 +40,7 @@
     --rule:           #383835;
     --series-1:       #3987e5;   /* believed position */
     --series-2:       #d95926;   /* intent / firing */
+    --series-3:       #6f57d8;   /* GRU -- distinct from firing */
     --warning:        #fab219;   /* concealing */
     --critical:       #d03b3b;   /* the correction snap */
     --good:           #0ca30c;
@@ -137,6 +138,8 @@
       <div class="seg">
         <button id="m-dr" aria-pressed="true">Dead reckoning</button>
         <button id="m-freeze" aria-pressed="false">Freeze</button>
+        <button id="m-gru" aria-pressed="false" disabled
+                title="needs the server started with --model-dir">GRU</button>
       </div>
       <div class="note">
         What the server believes while packets are missing.
@@ -177,9 +180,20 @@
               <td id="dr50">—</td><td id="dr90">—</td></tr>
           <tr><td><span class="dot" style="background:var(--muted)"></span>freeze</td>
               <td id="fz50">—</td><td id="fz90">—</td></tr>
+          <tr><td><span class="dot" style="background:var(--series-3)"></span>GRU</td>
+              <td id="gr50">—</td><td id="gr90">—</td></tr>
+          <tr><td colspan="3" class="note" style="padding-top:6px">
+              <span id="grnote">GRU not loaded</span></td></tr>
         </tbody>
       </table>
-      <div class="note">Both scored on the same gaps, server-side.</div>
+      <div class="note">
+        All methods scored on the same gaps, server-side. When the GRU
+        declines a gap — too short to be worth a model, or a hole in the
+        history it needs — it is scored on fewer gaps than the others,
+        and the count below says how many. The dead-reckoning figure it
+        should be compared against is the one over those same gaps,
+        which is what the server reports.
+      </div>
     </div>
 
     <div class="panel">
@@ -193,7 +207,12 @@
 </div>
 
 <script>
-const API = "http://localhost:8080";
+// Default 8080, overridable without editing this file:
+//   ui_dashboard.html?api=http://localhost:8123
+// The server's --http port has moved more than once during testing, and
+// a mismatch shows up as a page that simply sits empty.
+const API = new URLSearchParams(location.search).get("api")
+            || "http://localhost:8080";
 const MAP_MIN = -2000, MAP_MAX = 2000;      // matches client.py
 const TRAIL = 45;          // ~4.5 s at the 10 Hz poll rate
 
@@ -275,6 +294,26 @@ function onState(d) {
   document.getElementById("dr90").textContent = f(s.error_p90_dr);
   document.getElementById("fz50").textContent = f(s.error_median_freeze);
   document.getElementById("fz90").textContent = f(s.error_p90_freeze);
+  document.getElementById("gr50").textContent = f(s.error_median_gru);
+  document.getElementById("gr90").textContent = f(s.error_p90_gru);
+
+  const gbtn = document.getElementById("m-gru");
+  gbtn.disabled = !s.gru_available;
+  if (!s.gru_available) {
+    document.getElementById("grnote").textContent =
+      "GRU not loaded — start the server with --model-dir ..\\ml_model";
+  } else if (s.gru_scored) {
+    // Never show the GRU's error without the number of gaps it was
+    // scored on, and never next to a dead-reckoning figure drawn from a
+    // different set of gaps.
+    document.getElementById("grnote").textContent =
+      "GRU scored " + s.gru_scored + " of " + s.outage_events +
+      " gaps; dead reckoning on those same gaps: " +
+      f(s.error_median_dr_matched);
+  } else {
+    document.getElementById("grnote").textContent =
+      "GRU loaded, no gaps scored yet";
+  }
   document.getElementById("recv").textContent = s.received.toLocaleString();
   document.getElementById("miss").textContent = s.missing.toLocaleString();
   document.getElementById("loss").textContent = s.loss_pct.toFixed(2) + "%";
@@ -284,6 +323,8 @@ function onState(d) {
     "aria-pressed", d.method === "dr");
   document.getElementById("m-freeze").setAttribute(
     "aria-pressed", d.method === "freeze");
+  document.getElementById("m-gru").setAttribute(
+    "aria-pressed", d.method === "gru");
 }
 
 function drawGrid() {
@@ -332,6 +373,17 @@ function render() {
         ctx.fillStyle = css("--warning");
         ctx.font = "11px system-ui, sans-serif";
         ctx.fillText(Math.round(p.concealed_for_ms) + " ms", px + r + 4, py + 4);
+
+        // Which method is actually drawing this player right now. Under
+        // "gru" the server may have declined this particular gap and
+        // fallen back to dead reckoning; saying so is the difference
+        // between a demo and a claim.
+        if (p.source === "gru" || p.source === "dr-fallback") {
+          ctx.fillStyle = p.source === "gru"
+            ? css("--series-3") : css("--muted");
+          ctx.fillText(p.source === "gru" ? "GRU" : "DR (no history)",
+                       px + r + 4, py + 18);
+        }
       }
 
       ctx.fillStyle = p.intent ? css("--series-2") : css("--series-1");
@@ -367,6 +419,16 @@ document.getElementById("m-dr").onclick = () =>
   fetch(API + "/conceal?method=dr").then(poll);
 document.getElementById("m-freeze").onclick = () =>
   fetch(API + "/conceal?method=freeze").then(poll);
+document.getElementById("m-gru").onclick = () =>
+  fetch(API + "/conceal?method=gru")
+    .then(r => r.json())
+    .then(j => {
+      if (j.error) {
+        document.getElementById("grnote").textContent =
+          "cannot switch: " + (j.detail || j.error);
+      }
+    })
+    .then(poll);
 document.querySelectorAll(".inj button").forEach(b => {
   b.onclick = () => fetch(API + "/inject?ms=" + b.dataset.ms);
 });
